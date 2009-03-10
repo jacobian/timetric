@@ -1,0 +1,61 @@
+Python Timetric client
+======================
+
+A client for Timetric (http://timetric.com/).
+
+Requirements (easy-installable, listed as prereqs in setup.py):
+
+    * httplib2
+    * python-dateutil
+    * oauth
+    * simplejson
+
+Usage::
+
+    >>> import timetric
+    
+    # You need a config dict with at minimum your secret and key from Timetric
+    # (see the "Applications" pane of the settings page). In a real app you'll
+    # want to make this config persistant (the shelve module is a lightweight 
+    # place to start) because the library will store OAuth authentication 
+    # information back to this config.
+    >>> conf = {'consumer_secret': 'XXX', 'consumer_key': 'XXX'}
+    >>> client = timetric.TimetricClient(conf)
+    
+    # The first time through you'll need to authorize your key with Timetric
+    # by sending the user to an authorization request page.
+    >>> import webbrowser
+    >>> webbrowser.open(client.get_authorize_url())
+
+    # Once the user has authorized at that page, you can continue.
+    >>> client.get_access_token()
+    
+    # Now you're authorized and can read and write the user's series.
+    # It appears there's no API method to get a list of a particular
+    # user's series, so you need to somehow "know" the series ID.
+    >>> series = client.series('p-DpewL0TO-iBE4nMBCTsQ')
+    
+    # Get the latest value
+    >>> series.latest()
+    (1236707269.0, 2.0)
+    
+    # Iterate over the whole dataset
+    >>> for (timestamp, value) in series:
+    ...     print timestamp, value
+    1236463646.39 3.0 
+    1236486562.94 5.0 
+    1236493503.37 6.0
+    
+    # Update given a single value
+    >>> series.update(14)
+    
+    # Update given an iterable of (time, value) pairs
+    >>> import time
+    >>> data = [(time.time() - 100, 11), (time.time() + 100, 15)]
+    >>> series.update(data)
+    
+    # Update given a file of CSV data
+    >>> series.update(open('/tmp/data.csv'))
+    
+    # Clear all the data out of the series
+    >>> series.delete()
