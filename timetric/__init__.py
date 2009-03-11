@@ -263,8 +263,7 @@ class Series(object):
                             
     def delete(self):
         """
-        Delete all data in the series. Doesn't actually remove the series;
-        just empties it out.
+        Delete this series.
         """
         self.client.delete(self.url)
         
