@@ -20,6 +20,7 @@ class TimetricClient(object):
     
     def __init__(self, config):
         self.http = httplib2.Http()
+        self.http.follow_redirects = False
         self.config = config
         try:
             self.consumer = oauth.OAuthConsumer(self.config['consumer_key'], self.config['consumer_secret'])
@@ -39,11 +40,28 @@ class TimetricClient(object):
             raise ValueError("Client isn't yet authorized.")
         return Series(self, id)
         
-    def create_series(self, **kw):
+    def create_series(self, data=None, **params):
         """
         Create a new series.
+    
+        If given, the data may a list of values or a CSV file; see
+        `Series.update` for details.
+        
+        The parameters are as described at http://timetric.com/help/httpapi/#series-metadata.
         """
-        raise NotImplementedError()
+        if 'caption' not in params or 'title' not in params:
+            raise TypeError('Missing "caption" or "title" parameter')
+        
+        if data:
+            if _is_file(data):
+                files = {'csv': data}
+            else:
+                files = {'csv': _iterable_to_stream(data)}
+        else:
+            files = {}
+            
+        resp, body = self.post('http://timetric.com/create/', params=params, files=files)
+        return Series(self, resp['location'].split('/')[-2])
         
     def get_request_token(self):
         """
@@ -79,13 +97,12 @@ class TimetricClient(object):
         self.config['oauth_secret'] = self.access_token.secret
         return self.access_token
 
-    def request(self, url, method='GET', params={}, files={}):
+    def build_oauth_request(self, method, url, params):
         """
-        Make an authenticated OAuth request.
+        Build a signed OAuthRequest.
         """
         if not self.access_token:
-            raise ValueError("Client isn't yet authorized.")
-
+            raise ValueError("Client isn't yet authorized.")        
         req = oauth.OAuthRequest.from_consumer_and_token(
             self.consumer,
             self.access_token,
@@ -94,24 +111,53 @@ class TimetricClient(object):
             parameters = params
         )
         req.sign_request(SIGNATURE, self.consumer, self.access_token)        
-                
-        if method in ['GET', 'DELETE']:
-            resp, body = self.http.request(req.to_url(), method)
+        return req
+
+    def get(self, url, params={}):
+        """
+        Make an authorized HTTP GET request. 
+        
+        Returns `(response_headers, body)`.
+        """
+        req = self.build_oauth_request('GET', url, params)
+        return self.http.request(req.to_url(), 'GET')
+        
+    def delete(self, url, params={}):
+        """
+        Make an authorized HTTP DELETE request. 
+        
+        Returns `(response_headers, body)`.
+        """
+        req = self.build_oauth_request('DELETE', url, params)
+        return self.http.request(req.to_url(), 'DELETE')
+        
+    def post(self, url, params={}, files={}):
+        """
+        Make an authorized HTTP POST request.
+
+        Returns `(response_headers, body)`
+        """
+        req = self.build_oauth_request('POST', url, params)
+        if files:
+            body = _encode_multipart(params, files)
+            headers = req.to_header()
+            headers['Content-Type'] = MULTIPART_CONTENT
         else:
-            if files:
-                body = _encode_multipart(params, files)
-                headers = req.to_header()
-                headers['Content-Type'] = MULTIPART_CONTENT
-            else:
-                body = req.to_postdata()
-                headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-            resp, body = self.http.request(
-                uri = req.get_normalized_http_url(), 
-                method = method, 
-                body = body,
-                headers = headers,
-            )
-        return body
+            body = req.to_postdata()
+            headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        
+        return self.http.request(req.get_normalized_http_url(), 'POST', body=body, headers=headers)
+        
+    def put(self, url, body, content_type):
+        """
+        Make an authorized HTTP PUT request. 
+        
+        Returns `(response_headers, body)`
+        """
+        req = self.build_oauth_request('PUT', url, {})
+        headers = req.to_header()
+        headers['Content-Type'] = content_type
+        return self.http.request(req.get_normalized_http_url(), 'PUT', body=body, headers=headers)
 
 class Series(object):
     """
@@ -133,14 +179,16 @@ class Series(object):
         Get the latest value in this series. Returns a tuple `(timestamp,
         value)`.
         """
-        data = simplejson.loads(self.client.request(self.url + "value/json/", 'GET'))
+        resp, body = self.client.get(self.url + "value/json/")
+        data = simplejson.loads(body)
         return (data['timestamp'], data['value'])
         
     def csv(self):
         """
         Get the raw CSV data (as a string) of this series.
         """
-        return self.client.request(self.url + "csv/", 'GET')
+        resp, body = self.client.get(self.url + "csv/")
+        return body
         
     def data(self):
         """
@@ -148,10 +196,17 @@ class Series(object):
         doesn't document this particular API, so consider this method
         prone to change.
         """
-        return simplejson.loads(self.client.request(self.url + 'json/', 'GET'))
+        resp, body = self.client.get(self.url + "json/")
+        return simplejson.loads(body)
         
     def __iter__(self):
-        return (line for line in csv.reader(StringIO(self.csv())))
+        return (
+            (_floatish(ts), _floatish(val)) 
+            for (ts, val) in csv.reader(StringIO(self.csv()))
+        )
+    
+    def __float__(self):
+        return float(self.latest()[1])
         
     def update(self, value):
         """
@@ -177,41 +232,65 @@ class Series(object):
         except TypeError:
             self._update_single(value)
         else:
-            if _is_file(value):
-                self._update_from_file(value)
-            else:
-                self._update_from_iterable(value)
+            if not _is_file(value):
+                value = _iterable_to_stream(value)
+            self._update_from_file(value)
+                
+    def increment(self, amount):
+        """
+        Increment the current value by the given amount, which may be negative
+        to perform a decrement.
+        """
+        self.client.post(self.url, {'increment': str(amount)})
+        
+    # Syntactic sugar for increment/decrement
+    def __iadd__(self, amount):
+        self.increment(amount)
+        return self
+        
+    def __isub__(self, amount): 
+        self.increment(-amount)
+        return self
+    
+    def rewrite(self, data):
+        """
+        Rewrite (i.e. replace) all the data in the series with the given data.
+        The data can be an iterator or a file as for `update`.
+        """
+        if not _is_file(data):
+            data = _iterable_to_stream(data)
+        self.client.put(self.url, data.read(), 'text/csv')
                             
     def delete(self):
         """
         Delete all data in the series. Doesn't actually remove the series;
         just empties it out.
         """
-        self.client.request(self.url, 'DELETE')
+        self.client.delete(self.url)
         
     def _update_single(self, value):
         """
         Update the series with a single value and a timestamp of now.
         """
-        self.client.request(self.url, 'POST', {'value': str(value)})
+        self.client.post(self.url, {'value': str(value)})
         
     def _update_from_file(self, file):
         """
         Update from a file-like object of CSV data.
         """
-        self.client.request(self.url, 'POST', files={'csv': file})
-        
-    def _update_from_iterable(self, values):
-        """
-        Update from an iterable of 2-tuples (date, value)
-        """
-        io = StringIO()
-        writer = csv.writer(io)
-        for timestamp, value in values:
-            writer.writerow([_parse_timestamp(timestamp), value])
-        io.seek(0)
-        self._update_from_file(io)
+        self.client.post(self.url, files={'csv': file})
 
+def _iterable_to_stream(values):
+    """
+    Convert an iterable of 2-tuples into a file-like object for the dataset.
+    """
+    io = StringIO()
+    writer = csv.writer(io)
+    for timestamp, value in values:
+        writer.writerow([_parse_timestamp(timestamp), value])
+    io.seek(0)
+    return io
+    
 def _parse_timestamp(timestamp):
     """
     Parse a timestamp into a format that Timetric understands.
@@ -222,6 +301,17 @@ def _parse_timestamp(timestamp):
         return float(timestamp)
     except (TypeError, ValueError):
         return time.mktime(dateutil.parser.parse(timestamp).utctimetuple())
+
+def _floatish(val):
+    """
+    Sort of try to convert something Timetric sent back to a float.
+    """
+    if val.lower() == 'none':
+        return None
+    try:
+        return float(val)
+    except ValueError:
+        return val
 
 #
 # The following code is adapted from Django (django.test.client)
