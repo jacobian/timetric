@@ -1,10 +1,14 @@
 import os
-from ez_setup import use_setuptools; use_setuptools()
-from setuptools import setup
+try:
+    from setuptools import setup, find_packages
+except ImportError:
+    from ez_setup import use_setuptools
+    use_setuptools()
+    from setuptools import setup, find_packages
 
 setup(
     name = "timetric",
-    version = "0.1",
+    version = "1.0",
     description = "Client library for Timetric (http://timetric.com/)",
     long_description = open(os.path.join(os.path.dirname(__file__), 'README')).read(),
     author = 'Jacob Kaplan-Moss',
