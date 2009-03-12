@@ -8,7 +8,7 @@ except ImportError:
 
 setup(
     name = "timetric",
-    version = "1.0",
+    version = "1.1",
     description = "Client library for Timetric (http://timetric.com/)",
     long_description = open(os.path.join(os.path.dirname(__file__), 'README')).read(),
     author = 'Jacob Kaplan-Moss',
