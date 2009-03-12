@@ -190,15 +190,6 @@ class Series(object):
         resp, body = self.client.get(self.url + "csv/")
         return body
         
-    def data(self):
-        """
-        Get all the data of this series as a dictionary. Timetric
-        doesn't document this particular API, so consider this method
-        prone to change.
-        """
-        resp, body = self.client.get(self.url + "json/")
-        return simplejson.loads(body)
-        
     def __iter__(self):
         return (
             (_floatish(ts), _floatish(val)) 
@@ -207,6 +198,9 @@ class Series(object):
     
     def __float__(self):
         return float(self.latest()[1])
+        
+    def __int__(self):
+        return int(self.latest()[1])
         
     def update(self, value):
         """
@@ -251,16 +245,7 @@ class Series(object):
     def __isub__(self, amount): 
         self.increment(-amount)
         return self
-    
-    def rewrite(self, data):
-        """
-        Rewrite (i.e. replace) all the data in the series with the given data.
-        The data can be an iterator or a file as for `update`.
-        """
-        if not _is_file(data):
-            data = _iterable_to_stream(data)
-        self.client.put(self.url, data.read(), 'text/csv')
-                            
+                                
     def delete(self):
         """
         Delete this series.

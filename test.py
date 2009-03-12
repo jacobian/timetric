@@ -105,27 +105,7 @@ class TimetricTests(unittest.TestCase):
         time.sleep(5)
         self.assertEqual(float(series), 12.5)
         series.delete()
-        
-    def test_rewrite(self):
-        series = self.make_series()
-        data = [
-            (1236735000, 1.0),
-            (1236735500, 2.5),
-            (1236736000, 5.0),
-        ]
-        series.update(data)
-        time.sleep(5)
-        self.assertEqual(len(list(series)), 4) # Same bug as in create_series        
-        
-        data2 = [
-            (1236735000, 9),
-            (1236735500, 10),
-            (1236736000, 11),
-        ]
-        series.rewrite(data2)
-        time.sleep(5)
-        self.assertEqual(list(series), data2)
-        
+                
 if __name__ == '__main__':
     import httplib2
     #httplib2.debuglevel = 1
