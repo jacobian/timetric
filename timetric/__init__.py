@@ -180,6 +180,7 @@ class Series(object):
         value)`.
         """
         resp, body = self.client.get(self.url + "value/json/")
+        assert resp.status == 200
         data = simplejson.loads(body)
         return (data['timestamp'], data['value'])
         
@@ -188,6 +189,7 @@ class Series(object):
         Get the raw CSV data (as a string) of this series.
         """
         resp, body = self.client.get(self.url + "csv/")
+        assert resp.status == 200
         return body
         
     def __iter__(self):
@@ -235,7 +237,8 @@ class Series(object):
         Increment the current value by the given amount, which may be negative
         to perform a decrement.
         """
-        self.client.post(self.url, {'increment': str(amount)})
+        resp, _ = self.client.post(self.url, {'increment': str(amount)})
+        assert resp.status == 204
         
     # Syntactic sugar for increment/decrement
     def __iadd__(self, amount):
@@ -260,19 +263,22 @@ class Series(object):
         """
         Delete this series.
         """
-        self.client.delete(self.url)
+        resp, _ = self.client.delete(self.url)
+        assert resp.status == 204
         
     def _update_single(self, value):
         """
         Update the series with a single value and a timestamp of now.
         """
-        self.client.post(self.url, {'value': str(value)})
+        resp, _ = self.client.post(self.url, {'value': str(value)})
+        assert resp.status == 204
         
     def _update_from_file(self, file):
         """
         Update from a file-like object of CSV data.
         """
-        self.client.post(self.url, files={'csv': file})
+        resp, _ = self.client.post(self.url, files={'csv': file})
+        assert resp.status == 204
 
 def _iterable_to_stream(values):
     """
