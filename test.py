@@ -40,12 +40,7 @@ class TimetricTests(unittest.TestCase):
     
     def test_create_series(self):
         series = self.make_series()
-
-        # The documentation claims the series will be empty, but
-        # it actually contains a single item, (timestamp, None).
-        # Once that's fixed, this test should be:
-        # self.assertEqual(list(series), [])
-        self.assertEqual(len(list(series)), 1)
+        self.assertEqual(list(series), [])
         series.delete()
         
     def test_create_series_with_data(self):
@@ -77,7 +72,7 @@ class TimetricTests(unittest.TestCase):
         ]
         series.update(data)
         time.sleep(5)
-        self.assertEqual(len(list(series)), 4) # Same bug as in create_series        
+        self.assertEqual(len(list(series)), 3)
         series.delete()
         
     def test_update_from_file(self):
@@ -85,7 +80,7 @@ class TimetricTests(unittest.TestCase):
         series = self.make_series()
         series.update(io)
         time.sleep(5)
-        self.assertEqual(len(list(series)), 4) # Same bug as in create_series        
+        self.assertEqual(len(list(series)), 3)
         series.delete()
         
     def test_increment_decrement(self):
