@@ -245,6 +245,16 @@ class Series(object):
     def __isub__(self, amount): 
         self.increment(-amount)
         return self
+
+    def rewrite(self, data):
+        """
+        Rewrite (i.e. replace) all the data in the series with the given data.
+        The data can be an iterator or a file as for `update`.
+        """
+        if not _is_file(data):
+            data = _iterable_to_stream(data)
+        resp, _ = self.client.put(self.url, data.read(), 'text/csv')
+        assert resp.status == 204
                                 
     def delete(self):
         """
