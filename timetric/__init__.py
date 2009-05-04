@@ -192,7 +192,7 @@ class Series(object):
         
     def __iter__(self):
         return (
-            (_floatish(ts), _floatish(val)) 
+            (float(ts), _valueish(val))
             for (ts, val) in csv.reader(StringIO(self.csv()))
         )
     
@@ -286,16 +286,13 @@ def _parse_timestamp(timestamp):
     except (TypeError, ValueError):
         return time.mktime(dateutil.parser.parse(timestamp).utctimetuple())
 
-def _floatish(val):
+def _valueish(val):
     """
-    Sort of try to convert something Timetric sent back to a float.
+    Try to convert something Timetric sent back to a Python value.
     """
-    if val.lower() == 'none':
-        return None
-    try:
-        return float(val)
-    except ValueError:
-        return val
+    literals = {"null":None, "true":True, "false":False}
+    v = val.lower()
+    return v in literals and literals[v] or float(v)
 
 #
 # The following code is adapted from Django (django.test.client)
