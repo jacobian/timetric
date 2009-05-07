@@ -180,7 +180,8 @@ class Series(object):
         value)`.
         """
         resp, body = self.client.get(self.url + "value/json/")
-        assert resp.status == 200
+        if resp.status != 200:
+            raise TimetricClientError("Failed to fetch latest value: HTTP %s" % resp.status)
         data = simplejson.loads(body)
         return (data['timestamp'], data['value'])
         
@@ -189,7 +190,8 @@ class Series(object):
         Get the raw CSV data (as a string) of this series.
         """
         resp, body = self.client.get(self.url + "csv/")
-        assert resp.status == 200
+        if resp.status != 200:
+            raise TimetricClientError("Failed to fetch CSV: HTTP %s" % resp.status)
         return body
         
     def __iter__(self):
@@ -238,7 +240,8 @@ class Series(object):
         to perform a decrement.
         """
         resp, _ = self.client.post(self.url, {'increment': str(amount)})
-        assert resp.status == 204
+        if resp.status != 204:
+            raise TimetricClientError("Failed to incremement/decrement: HTTP %s" % resp.status)
         
     # Syntactic sugar for increment/decrement
     def __iadd__(self, amount):
@@ -257,28 +260,35 @@ class Series(object):
         if not _is_file(data):
             data = _iterable_to_stream(data)
         resp, _ = self.client.put(self.url, data.read(), 'text/csv')
-        assert resp.status == 204
+        if resp.status != 204:
+            raise TimetricClientError("Failed to rewrite data: HTTP %s" % resp.status)
                                 
     def delete(self):
         """
         Delete this series.
         """
         resp, _ = self.client.delete(self.url)
-        assert resp.status == 204
+        if resp.status != 204:
+            raise TimetricClientError("Failed to delete series: HTTP %s" % resp.status)
         
     def _update_single(self, value):
         """
         Update the series with a single value and a timestamp of now.
         """
         resp, _ = self.client.post(self.url, {'value': str(value)})
-        assert resp.status == 204
+        if resp.status != 204:
+            raise TimetricClientError("Failed to update: HTTP %s" % resp.status)
         
     def _update_from_file(self, file):
         """
         Update from a file-like object of CSV data.
         """
         resp, _ = self.client.post(self.url, files={'csv': file})
-        assert resp.status == 204
+        if resp.status != 204:
+            raise TimetricClientError("Failed to update: HTTP %s" % resp.status)
+
+class TimetricClientError(Exception):
+    pass
 
 def _iterable_to_stream(values):
     """
