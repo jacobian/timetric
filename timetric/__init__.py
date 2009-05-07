@@ -180,6 +180,7 @@ class Series(object):
         value)`.
         """
         resp, body = self.client.get(self.url + "value/json/")
+        assert resp.status == 200
         data = simplejson.loads(body)
         return (data['timestamp'], data['value'])
         
@@ -188,11 +189,12 @@ class Series(object):
         Get the raw CSV data (as a string) of this series.
         """
         resp, body = self.client.get(self.url + "csv/")
+        assert resp.status == 200
         return body
         
     def __iter__(self):
         return (
-            (_floatish(ts), _floatish(val)) 
+            (float(ts), _valueish(val))
             for (ts, val) in csv.reader(StringIO(self.csv()))
         )
     
@@ -235,7 +237,8 @@ class Series(object):
         Increment the current value by the given amount, which may be negative
         to perform a decrement.
         """
-        self.client.post(self.url, {'increment': str(amount)})
+        resp, _ = self.client.post(self.url, {'increment': str(amount)})
+        assert resp.status == 204
         
     # Syntactic sugar for increment/decrement
     def __iadd__(self, amount):
@@ -245,24 +248,37 @@ class Series(object):
     def __isub__(self, amount): 
         self.increment(-amount)
         return self
+
+    def rewrite(self, data):
+        """
+        Rewrite (i.e. replace) all the data in the series with the given data.
+        The data can be an iterator or a file as for `update`.
+        """
+        if not _is_file(data):
+            data = _iterable_to_stream(data)
+        resp, _ = self.client.put(self.url, data.read(), 'text/csv')
+        assert resp.status == 204
                                 
     def delete(self):
         """
         Delete this series.
         """
-        self.client.delete(self.url)
+        resp, _ = self.client.delete(self.url)
+        assert resp.status == 204
         
     def _update_single(self, value):
         """
         Update the series with a single value and a timestamp of now.
         """
-        self.client.post(self.url, {'value': str(value)})
+        resp, _ = self.client.post(self.url, {'value': str(value)})
+        assert resp.status == 204
         
     def _update_from_file(self, file):
         """
         Update from a file-like object of CSV data.
         """
-        self.client.post(self.url, files={'csv': file})
+        resp, _ = self.client.post(self.url, files={'csv': file})
+        assert resp.status == 204
 
 def _iterable_to_stream(values):
     """
@@ -286,16 +302,13 @@ def _parse_timestamp(timestamp):
     except (TypeError, ValueError):
         return time.mktime(dateutil.parser.parse(timestamp).utctimetuple())
 
-def _floatish(val):
+def _valueish(val):
     """
-    Sort of try to convert something Timetric sent back to a float.
+    Try to convert something Timetric sent back to a Python value.
     """
-    if val.lower() == 'none':
-        return None
-    try:
-        return float(val)
-    except ValueError:
-        return val
+    literals = {"null":None, "true":True, "false":False}
+    v = val.lower()
+    return v in literals and literals[v] or float(v)
 
 #
 # The following code is adapted from Django (django.test.client)
