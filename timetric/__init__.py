@@ -120,7 +120,7 @@ class TimetricClient(object):
         Returns `(response_headers, body)`.
         """
         req = self.build_oauth_request('GET', url, params)
-        return self.http.request(req.to_url(), 'GET')
+        return self.http.request(req.get_normalized_http_url(), 'GET', headers=req.to_header())
         
     def delete(self, url, params={}):
         """
@@ -129,7 +129,7 @@ class TimetricClient(object):
         Returns `(response_headers, body)`.
         """
         req = self.build_oauth_request('DELETE', url, params)
-        return self.http.request(req.to_url(), 'DELETE')
+        return self.http.request(req.get_normalized_http_url(), 'DELETE', headers=req.to_header())
         
     def post(self, url, params={}, files={}):
         """

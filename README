@@ -1,7 +1,7 @@
 Python Timetric client
 ======================
 
-A client for Timetric (http://timetric.com/).
+A client for Timetric (http://timetric.com).
 
 Requirements (easy-installable, listed as prereqs in setup.py):
 
