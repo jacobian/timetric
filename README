@@ -46,7 +46,7 @@ with Timetric to set up your tokens.
     # want to make this config persistant (the shelve module is a lightweight
     # place to start) because the library will store OAuth authentication
     # information back to this config.
-    >>> conf = {'consumer_secret': 'XXX', 'consumer_key': 'XXX'}
+    >>> conf = {'authtype':'oauth', 'consumer_secret': 'XXX', 'consumer_key': 'XXX'}
     >>> client = timetric.TimetricClient(conf)
 
     # The first time through you'll need to authorize your key with Timetric
