@@ -3,6 +3,7 @@ import dateutil.parser
 import httplib2
 import simplejson
 import time
+import urllib
 from cStringIO import StringIO
 from oauth import oauth
 
@@ -121,8 +122,7 @@ class TimetricClient(object):
         """
         if not params:
             params = {}
-        req = self.build_oauth_request('GET', url, params)
-        return self.http.request(req.get_normalized_http_url(), 'GET', headers=req.to_header())
+        return self.oauth_request('GET', url, params=params)
         
     def delete(self, url, params=None):
         """
@@ -130,8 +130,7 @@ class TimetricClient(object):
         
         Returns `(response_headers, body)`.
         """
-        req = self.build_oauth_request('DELETE', url, params)
-        return self.http.request(req.get_normalized_http_url(), 'DELETE', headers=req.to_header())
+        return self.oauth_request('DELETE', url, params=params)
         
     def post(self, url, params=None, files=None):
         """
@@ -143,16 +142,13 @@ class TimetricClient(object):
             params = {}
         if not files:
             files = {}
-        req = self.build_oauth_request('POST', url, params)
         if files:
             body = _encode_multipart(params, files)
-            headers = req.to_header()
-            headers['Content-Type'] = MULTIPART_CONTENT
+            headers = {'Content-Type':MULTIPART_CONTENT}
         else:
-            body = req.to_postdata()
+            body = urllib.urlencode(params)
             headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        
-        return self.http.request(req.get_normalized_http_url(), 'POST', body=body, headers=headers)
+        return self.oauth_request('POST', url, params=params, body=body, headers=headers)
         
     def put(self, url, body, content_type):
         """
@@ -160,10 +156,18 @@ class TimetricClient(object):
         
         Returns `(response_headers, body)`
         """
-        req = self.build_oauth_request('PUT', url, {})
-        headers = req.to_header()
-        headers['Content-Type'] = content_type
-        return self.http.request(req.get_normalized_http_url(), 'PUT', body=body, headers=headers)
+        headers = {'Content-Type':content_type}
+        return self.oauth_request('PUT', url, body=body, headers=headers)
+
+    def oauth_request(self, method, url, params=None, body="", headers=None):
+        if not params:
+            params = {}
+        if not headers:
+            headers = {}
+        req = self.build_oauth_request(method, url, params)
+        headers.update(req.to_header())
+        return self.http.request(req.get_normalized_http_url(),
+                                 method, body=body, headers=headers)
 
 class Series(object):
     """
