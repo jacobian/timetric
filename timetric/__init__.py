@@ -113,16 +113,18 @@ class TimetricClient(object):
         req.sign_request(SIGNATURE, self.consumer, self.access_token)        
         return req
 
-    def get(self, url, params={}):
+    def get(self, url, params=None):
         """
         Make an authorized HTTP GET request. 
         
         Returns `(response_headers, body)`.
         """
+        if not params:
+            params = {}
         req = self.build_oauth_request('GET', url, params)
         return self.http.request(req.get_normalized_http_url(), 'GET', headers=req.to_header())
         
-    def delete(self, url, params={}):
+    def delete(self, url, params=None):
         """
         Make an authorized HTTP DELETE request. 
         
@@ -131,12 +133,16 @@ class TimetricClient(object):
         req = self.build_oauth_request('DELETE', url, params)
         return self.http.request(req.get_normalized_http_url(), 'DELETE', headers=req.to_header())
         
-    def post(self, url, params={}, files={}):
+    def post(self, url, params=None, files=None):
         """
         Make an authorized HTTP POST request.
 
         Returns `(response_headers, body)`
         """
+        if not params:
+            params = {}
+        if not files:
+            files = {}
         req = self.build_oauth_request('POST', url, params)
         if files:
             body = _encode_multipart(params, files)
