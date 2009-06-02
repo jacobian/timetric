@@ -6,9 +6,7 @@ import simplejson
 import time
 import urllib
 from cStringIO import StringIO
-from oauth import oauth
 
-SIGNATURE = oauth.OAuthSignatureMethod_HMAC_SHA1()
 
 class TimetricClient(object):
     """
@@ -30,6 +28,9 @@ class TimetricClient(object):
             self.setup_apitokens()
 
     def setup_oauth(self):
+        from oauth import oauth
+        self.oauth_module = oauth
+        self.SIGNATURE = oauth.OAuthSignatureMethod_HMAC_SHA1()
         self.authtype = 'oauth'
         self.make_request = self.oauth_request
         try:
@@ -85,8 +86,9 @@ class TimetricClient(object):
         
         Called automatically by get_authorize_url() if needed.
         """
-        req = oauth.OAuthRequest.from_consumer_and_token(self.consumer, http_url=self.request_token_url)
-        req.sign_request(SIGNATURE, self.consumer, None)
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
+            self.consumer, http_url=self.request_token_url)
+        req.sign_request(self.SIGNATURE, self.consumer, None)
         resp, body = self.http.request(req.to_url(), 'GET')
         return oauth.OAuthToken.from_string(body)
 
@@ -96,7 +98,8 @@ class TimetricClient(object):
         """
         if not token:
             token = self.get_request_token()
-        req = oauth.OAuthRequest.from_token_and_callback(token=token, http_url=self.authorization_url, callback=callback)
+        req = self.oauth_module.oauth.OAuthRequest.from_token_and_callback(
+            token=token, http_url=self.authorization_url, callback=callback)
         return req.to_url()
         
     def get_access_token(self, token):
@@ -105,8 +108,9 @@ class TimetricClient(object):
         
         Stores the access token in the config dict for later use.
         """
-        req = oauth.OAuthRequest.from_consumer_and_token(self.consumer, token=token, http_url=self.access_token_url)
-        req.sign_request(SIGNATURE, self.consumer, token)
+        req = self.oauth_module.oauth.OAuthRequest.from_consumer_and_token(
+            self.consumer, token=token, http_url=self.access_token_url)
+        req.sign_request(self.SIGNATURE, self.consumer, token)
         resp, body = self.http.request(req.to_url(), 'GET')
         self.access_token = oauth.OAuthToken.from_string(body)
         self.config['oauth_token'] = self.access_token.key
@@ -119,14 +123,14 @@ class TimetricClient(object):
         """
         if not self.access_token:
             raise ValueError("Client isn't yet authorized.")        
-        req = oauth.OAuthRequest.from_consumer_and_token(
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
             self.consumer,
             self.access_token,
             http_method = method,
             http_url = url,
             parameters = params
         )
-        req.sign_request(SIGNATURE, self.consumer, self.access_token)        
+        req.sign_request(self.SIGNATURE, self.consumer, self.access_token)
         return req
 
     def get(self, url, params=None):
@@ -194,6 +198,7 @@ class TimetricClient(object):
                              self.__dict__)
         headers['Authorization'] = auth_header
         return self.http.request(url, method, body=body, headers=headers)
+
 
 class Series(object):
     """
