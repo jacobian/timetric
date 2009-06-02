@@ -1,3 +1,4 @@
+import base64
 import csv
 import dateutil.parser
 import httplib2
@@ -23,6 +24,14 @@ class TimetricClient(object):
         self.http = httplib2.Http()
         self.http.follow_redirects = False
         self.config = config
+        if config['authtype'] == 'oauth':
+            self.setup_oauth()
+        elif config['authtype'] == 'apitoken':
+            self.setup_apitokens()
+
+    def setup_oauth(self):
+        self.authtype = 'oauth'
+        self.make_request = self.oauth_request
         try:
             self.consumer = oauth.OAuthConsumer(self.config['consumer_key'], self.config['consumer_secret'])
         except KeyError:
@@ -31,13 +40,19 @@ class TimetricClient(object):
             self.access_token = oauth.OAuthToken(self.config['oauth_token'], self.config['oauth_secret'])
         except KeyError:
             self.access_token = None
-            
+
+    def setup_apitokens(self):
+        self.authtype = 'apitoken'
+        self.make_request = self.apitoken_request
+        self.apitoken_key = self.config['apitoken_key']
+        self.apitoken_secret = self.config['apitoken_secret']
+
     def series(self, id):
         """
         Get an existing data series. Fails if the client isn't successfully
         authorized.
         """
-        if not self.access_token:
+        if self.authtype == 'oauth' and not self.access_token:
             raise ValueError("Client isn't yet authorized.")
         return Series(self, id)
         
@@ -122,7 +137,7 @@ class TimetricClient(object):
         """
         if not params:
             params = {}
-        return self.oauth_request('GET', url, params=params)
+        return self.make_request('GET', url, params=params)
         
     def delete(self, url, params=None):
         """
@@ -130,7 +145,7 @@ class TimetricClient(object):
         
         Returns `(response_headers, body)`.
         """
-        return self.oauth_request('DELETE', url, params=params)
+        return self.make_request('DELETE', url, params=params)
         
     def post(self, url, params=None, files=None):
         """
@@ -148,7 +163,7 @@ class TimetricClient(object):
         else:
             body = urllib.urlencode(params)
             headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        return self.oauth_request('POST', url, params=params, body=body, headers=headers)
+        return self.make_request('POST', url, params=params, body=body, headers=headers)
         
     def put(self, url, body, content_type):
         """
@@ -157,7 +172,7 @@ class TimetricClient(object):
         Returns `(response_headers, body)`
         """
         headers = {'Content-Type':content_type}
-        return self.oauth_request('PUT', url, body=body, headers=headers)
+        return self.make_request('PUT', url, body=body, headers=headers)
 
     def oauth_request(self, method, url, params=None, body="", headers=None):
         if not params:
@@ -168,6 +183,17 @@ class TimetricClient(object):
         headers.update(req.to_header())
         return self.http.request(req.get_normalized_http_url(),
                                  method, body=body, headers=headers)
+
+    def apitoken_request(self, method, url, params=None, body="", headers=None):
+        if not headers:
+            headers = {}
+        if params:
+            url += "?%s" % urllib.urlencode(params)
+        auth_header = "Basic %s" % \
+            base64.b64encode("%(apitoken_key)s:%(apitoken_secret)s" %
+                             self.__dict__)
+        headers['Authorization'] = auth_header
+        return self.http.request(url, method, body=body, headers=headers)
 
 class Series(object):
     """
