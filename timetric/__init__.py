@@ -90,7 +90,7 @@ class TimetricClient(object):
             self.consumer, http_url=self.request_token_url)
         req.sign_request(self.SIGNATURE, self.consumer, None)
         resp, body = self.http.request(req.to_url(), 'GET')
-        return oauth.OAuthToken.from_string(body)
+        return self.oauth_module.OAuthToken.from_string(body)
 
     def get_authorize_url(self, token=None, callback=None):
         """
@@ -98,7 +98,7 @@ class TimetricClient(object):
         """
         if not token:
             token = self.get_request_token()
-        req = self.oauth_module.oauth.OAuthRequest.from_token_and_callback(
+        req = self.oauth_module.OAuthRequest.from_token_and_callback(
             token=token, http_url=self.authorization_url, callback=callback)
         return req.to_url()
         
@@ -108,11 +108,11 @@ class TimetricClient(object):
         
         Stores the access token in the config dict for later use.
         """
-        req = self.oauth_module.oauth.OAuthRequest.from_consumer_and_token(
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
             self.consumer, token=token, http_url=self.access_token_url)
         req.sign_request(self.SIGNATURE, self.consumer, token)
         resp, body = self.http.request(req.to_url(), 'GET')
-        self.access_token = oauth.OAuthToken.from_string(body)
+        self.access_token = self.oauth_module.OAuthToken.from_string(body)
         self.config['oauth_token'] = self.access_token.key
         self.config['oauth_secret'] = self.access_token.secret
         return self.access_token
