@@ -77,7 +77,7 @@ class TimetricClient(object):
         else:
             files = {}
             
-        resp, body = self.post('http://timetric.com/create/', params=params, files=files)
+        resp, body = self.post('https://timetric.com/create/', params=params, files=files)
         return Series(self, resp['location'].split('/')[-2])
         
     def get_request_token(self):
