@@ -18,10 +18,11 @@ class TimetricClient(object):
     authorization_url = 'http://timetric.com/oauth/authorize/'
     access_token_url = 'http://timetric.com/oauth/access_token/'
     
-    def __init__(self, config):
+    def __init__(self, config, user_agent="python-timetric"):
         self.http = httplib2.Http()
         self.http.follow_redirects = False
         self.config = config
+        self.user_agent = user_agent
         if config['authtype'] == 'oauth':
             self.setup_oauth()
         elif config['authtype'] == 'apitoken':
@@ -185,6 +186,7 @@ class TimetricClient(object):
             headers = {}
         req = self.build_oauth_request(method, url, params)
         headers.update(req.to_header())
+        headers['User-Agent'] = self.user_agent
         return self.http.request(req.get_normalized_http_url(),
                                  method, body=body, headers=headers)
 
@@ -197,6 +199,7 @@ class TimetricClient(object):
             base64.b64encode("%(apitoken_key)s:%(apitoken_secret)s" %
                              self.__dict__)
         headers['Authorization'] = auth_header
+        headers['User-Agent'] = self.user_agent
         return self.http.request(url, method, body=body, headers=headers)
 
 
