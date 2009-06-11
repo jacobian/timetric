@@ -8,7 +8,7 @@ except ImportError:
 
 setup(
     name = "timetric",
-    version = "1.2",
+    version = "1.3",
     description = "Client library for Timetric (http://timetric.com/)",
     long_description = open(os.path.join(os.path.dirname(__file__), 'README')).read(),
     author = 'Jacob Kaplan-Moss',
@@ -18,7 +18,6 @@ setup(
     install_requires = [
         'httplib2',
         'python-dateutil',
-        'oauth',
         'simplejson',
     ],
     classifiers = [

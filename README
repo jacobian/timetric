@@ -13,6 +13,8 @@ Optionally, if you want to use OAuth authentication:
 
     * oauth
 
+This is *not* listed as a prereq, so it won't be installed by default.
+
 Authentication setup
 --------------------
 

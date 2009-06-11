@@ -33,7 +33,7 @@ class TimetricClient(object):
                              "(should be 'oauth' or 'apitoken')" % self.authtype)
 
     def setup_oauth(self):
-        from oauth import oauth
+        from oauth import oauth # if this fails you need to `easy_install oauth`.
         self.oauth_module = oauth
         self.SIGNATURE = oauth.OAuthSignatureMethod_HMAC_SHA1()
         self.authtype = 'oauth'
