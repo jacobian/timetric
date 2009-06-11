@@ -1,37 +1,83 @@
 Python Timetric client
 ======================
 
-A client for Timetric (http://timetric.com/).
+A client for Timetric (http://timetric.com).
 
 Requirements (easy-installable, listed as prereqs in setup.py):
 
     * httplib2
     * python-dateutil
-    * oauth
     * simplejson
 
-Usage::
+Optionally, if you want to use OAuth authentication:
+
+    * oauth
+
+Authentication setup:
+
+The client expects a config dict with its authentication credentials. This must
+contain the key 'authtype' - which should have the value 'apitoken' or 'oauth'.
+
+If an API token is being used, there must be keys for:
+
+  * 'apitoken_key'
+  * 'apitoken_secret'
+
+If OAuth is being used, there must also be keys for:
+
+  * 'consumer_key'
+  * 'consumer_secret'
+
+and if you have already done the necessary key exchange, then this can also
+contain:
+
+  * 'access_key'
+  * 'access_token'
+
+OAuth setup:
+
+The first time you use the OAuth protocol, you'll need to do some key exchange
+with Timetric to set up your tokens.
 
     >>> import timetric
-    
+
     # You need a config dict with at minimum your secret and key from Timetric
     # (see the "Applications" pane of the settings page). In a real app you'll
-    # want to make this config persistant (the shelve module is a lightweight 
-    # place to start) because the library will store OAuth authentication 
+    # want to make this config persistant (the shelve module is a lightweight
+    # place to start) because the library will store OAuth authentication
     # information back to this config.
-    >>> conf = {'consumer_secret': 'XXX', 'consumer_key': 'XXX'}
+    >>> conf = {'authtype':'oauth', 'consumer_key: 'XXX',
+                                    'consumer_secret': 'XXX'}
     >>> client = timetric.TimetricClient(conf)
-    
+
     # The first time through you'll need to authorize your key with Timetric
     # by sending the user to an authorization request page.
+    >> token = client.get_request_token()
     >>> import webbrowser
-    >>> webbrowser.open(client.get_authorize_url())
+    >>> webbrowser.open(client.get_authorize_url(token))
 
     # Once the user has authorized at that page, you can continue.
-    >>> client.get_access_token()
+    >>> access_token = client.get_access_token(token)
+
+    # You can now re-authorize to use this token:
+    >>> conf.update({'oauth_key':access_token.key,
+                     'oauth_secret':access_token.secret})
+    >>> client = timetric.TimetricClient(conf)
+
+API token setup:
+
+    >>> import timetric
+
+    # Having got your config dict from somewhere:
+    >>> conf = {'authtype':'apitoken', 'apitoken_key': 'XXX', 'apitoken-secret': 'XXX'}
+
+    # you initialize the timetric client:
+    >>> client = timetric.TimetricClient(conf)
+
+
+Usage::
     
-    # Now you're authorized and can read and write the user's series.
-    # It appears there's no API method to get a list of a particular
+    # There's no API method to get a list of a particular
     # user's series, so you need to somehow "know" the series ID.
     >>> series = client.series('p-DpewL0TO-iBE4nMBCTsQ')
     

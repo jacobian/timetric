@@ -1,12 +1,12 @@
+import base64
 import csv
 import dateutil.parser
 import httplib2
 import simplejson
 import time
+import urllib
 from cStringIO import StringIO
-from oauth import oauth
 
-SIGNATURE = oauth.OAuthSignatureMethod_HMAC_SHA1()
 
 class TimetricClient(object):
     """
@@ -18,10 +18,22 @@ class TimetricClient(object):
     authorization_url = 'http://timetric.com/oauth/authorize/'
     access_token_url = 'http://timetric.com/oauth/access_token/'
     
-    def __init__(self, config):
+    def __init__(self, config, user_agent="python-timetric"):
         self.http = httplib2.Http()
         self.http.follow_redirects = False
         self.config = config
+        self.user_agent = user_agent
+        if config['authtype'] == 'oauth':
+            self.setup_oauth()
+        elif config['authtype'] == 'apitoken':
+            self.setup_apitokens()
+
+    def setup_oauth(self):
+        from oauth import oauth
+        self.oauth_module = oauth
+        self.SIGNATURE = oauth.OAuthSignatureMethod_HMAC_SHA1()
+        self.authtype = 'oauth'
+        self.make_request = self.oauth_request
         try:
             self.consumer = oauth.OAuthConsumer(self.config['consumer_key'], self.config['consumer_secret'])
         except KeyError:
@@ -30,13 +42,19 @@ class TimetricClient(object):
             self.access_token = oauth.OAuthToken(self.config['oauth_token'], self.config['oauth_secret'])
         except KeyError:
             self.access_token = None
-            
+
+    def setup_apitokens(self):
+        self.authtype = 'apitoken'
+        self.make_request = self.apitoken_request
+        self.apitoken_key = self.config['apitoken_key']
+        self.apitoken_secret = self.config['apitoken_secret']
+
     def series(self, id):
         """
         Get an existing data series. Fails if the client isn't successfully
         authorized.
         """
-        if not self.access_token:
+        if self.authtype == 'oauth' and not self.access_token:
             raise ValueError("Client isn't yet authorized.")
         return Series(self, id)
         
@@ -60,7 +78,7 @@ class TimetricClient(object):
         else:
             files = {}
             
-        resp, body = self.post('http://timetric.com/create/', params=params, files=files)
+        resp, body = self.post('https://timetric.com/create/', params=params, files=files)
         return Series(self, resp['location'].split('/')[-2])
         
     def get_request_token(self):
@@ -69,10 +87,11 @@ class TimetricClient(object):
         
         Called automatically by get_authorize_url() if needed.
         """
-        req = oauth.OAuthRequest.from_consumer_and_token(self.consumer, http_url=self.request_token_url)
-        req.sign_request(SIGNATURE, self.consumer, None)
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
+            self.consumer, http_url=self.request_token_url)
+        req.sign_request(self.SIGNATURE, self.consumer, None)
         resp, body = self.http.request(req.to_url(), 'GET')
-        return oauth.OAuthToken.from_string(body)
+        return self.oauth_module.OAuthToken.from_string(body)
 
     def get_authorize_url(self, token=None, callback=None):
         """
@@ -80,7 +99,8 @@ class TimetricClient(object):
         """
         if not token:
             token = self.get_request_token()
-        req = oauth.OAuthRequest.from_token_and_callback(token=token, http_url=self.authorization_url, callback=callback)
+        req = self.oauth_module.OAuthRequest.from_token_and_callback(
+            token=token, http_url=self.authorization_url, callback=callback)
         return req.to_url()
         
     def get_access_token(self, token):
@@ -89,10 +109,11 @@ class TimetricClient(object):
         
         Stores the access token in the config dict for later use.
         """
-        req = oauth.OAuthRequest.from_consumer_and_token(self.consumer, token=token, http_url=self.access_token_url)
-        req.sign_request(SIGNATURE, self.consumer, token)
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
+            self.consumer, token=token, http_url=self.access_token_url)
+        req.sign_request(self.SIGNATURE, self.consumer, token)
         resp, body = self.http.request(req.to_url(), 'GET')
-        self.access_token = oauth.OAuthToken.from_string(body)
+        self.access_token = self.oauth_module.OAuthToken.from_string(body)
         self.config['oauth_token'] = self.access_token.key
         self.config['oauth_secret'] = self.access_token.secret
         return self.access_token
@@ -103,50 +124,51 @@ class TimetricClient(object):
         """
         if not self.access_token:
             raise ValueError("Client isn't yet authorized.")        
-        req = oauth.OAuthRequest.from_consumer_and_token(
+        req = self.oauth_module.OAuthRequest.from_consumer_and_token(
             self.consumer,
             self.access_token,
             http_method = method,
             http_url = url,
             parameters = params
         )
-        req.sign_request(SIGNATURE, self.consumer, self.access_token)        
+        req.sign_request(self.SIGNATURE, self.consumer, self.access_token)
         return req
 
-    def get(self, url, params={}):
+    def get(self, url, params=None):
         """
         Make an authorized HTTP GET request. 
         
         Returns `(response_headers, body)`.
         """
-        req = self.build_oauth_request('GET', url, params)
-        return self.http.request(req.to_url(), 'GET')
+        if not params:
+            params = {}
+        return self.make_request('GET', url, params=params)
         
-    def delete(self, url, params={}):
+    def delete(self, url, params=None):
         """
         Make an authorized HTTP DELETE request. 
         
         Returns `(response_headers, body)`.
         """
-        req = self.build_oauth_request('DELETE', url, params)
-        return self.http.request(req.to_url(), 'DELETE')
+        return self.make_request('DELETE', url, params=params)
         
-    def post(self, url, params={}, files={}):
+    def post(self, url, params=None, files=None):
         """
         Make an authorized HTTP POST request.
 
         Returns `(response_headers, body)`
         """
-        req = self.build_oauth_request('POST', url, params)
+        if not params:
+            params = {}
+        if not files:
+            files = {}
         if files:
             body = _encode_multipart(params, files)
-            headers = req.to_header()
-            headers['Content-Type'] = MULTIPART_CONTENT
+            headers = {'Content-Type':MULTIPART_CONTENT}
         else:
-            body = req.to_postdata()
+            body = urllib.urlencode(params)
             headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-        
-        return self.http.request(req.get_normalized_http_url(), 'POST', body=body, headers=headers)
+        return self.make_request('POST', url, params=params, body=body, headers=headers)
         
     def put(self, url, body, content_type):
         """
@@ -154,10 +176,32 @@ class TimetricClient(object):
         
         Returns `(response_headers, body)`
         """
-        req = self.build_oauth_request('PUT', url, {})
-        headers = req.to_header()
-        headers['Content-Type'] = content_type
-        return self.http.request(req.get_normalized_http_url(), 'PUT', body=body, headers=headers)
+        headers = {'Content-Type':content_type}
+        return self.make_request('PUT', url, body=body, headers=headers)
+
+    def oauth_request(self, method, url, params=None, body="", headers=None):
+        if not params:
+            params = {}
+        if not headers:
+            headers = {}
+        req = self.build_oauth_request(method, url, params)
+        headers.update(req.to_header())
+        headers['User-Agent'] = self.user_agent
+        return self.http.request(req.get_normalized_http_url(),
+                                 method, body=body, headers=headers)
+
+    def apitoken_request(self, method, url, params=None, body="", headers=None):
+        if not headers:
+            headers = {}
+        if params:
+            url += "?%s" % urllib.urlencode(params)
+        auth_header = "Basic %s" % \
+            base64.b64encode("%(apitoken_key)s:%(apitoken_secret)s" %
+                             self.__dict__)
+        headers['Authorization'] = auth_header
+        headers['User-Agent'] = self.user_agent
+        return self.http.request(url, method, body=body, headers=headers)
+
 
 class Series(object):
     """
