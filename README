@@ -13,28 +13,33 @@ Optionally, if you want to use OAuth authentication:
 
     * oauth
 
-Authentication setup:
+Authentication setup
+--------------------
 
-The client expects a config dict with its authentication credentials. This must
-contain the key 'authtype' - which should have the value 'apitoken' or 'oauth'.
+You'll provide authentication information to the ``TimetricClient`` in a config
+dict. Timetric supports two types of authentication: OAuth and API tokens. You
+can choose a method using the ``'authtype'`` key to the config dict. The value
+of this key can be ``'oauth'`` or ``'apitoken'``; if not given it defaults to
+``'oauth'``.
 
 If an API token is being used, there must be keys for:
 
-  * 'apitoken_key'
-  * 'apitoken_secret'
+    * 'apitoken_key'
+    * 'apitoken_secret'
 
 If OAuth is being used, there must also be keys for:
 
-  * 'consumer_key'
-  * 'consumer_secret'
+    * 'consumer_key'
+    * 'consumer_secret'
 
 and if you have already done the necessary key exchange, then this can also
 contain:
 
-  * 'access_key'
-  * 'access_token'
+    * 'access_key'
+    * 'access_token'
 
-OAuth setup:
+OAuth setup
+-----------
 
 The first time you use the OAuth protocol, you'll need to do some key exchange
 with Timetric to set up your tokens.
@@ -46,8 +51,9 @@ with Timetric to set up your tokens.
     # want to make this config persistant (the shelve module is a lightweight
     # place to start) because the library will store OAuth authentication
     # information back to this config.
-    >>> conf = {'authtype':'oauth', 'consumer_key: 'XXX',
-                                    'consumer_secret': 'XXX'}
+    >>> conf = {'authtype':'oauth', 
+    ...         'consumer_key: 'XXX',
+    ...         'consumer_secret': 'XXX'}
     >>> client = timetric.TimetricClient(conf)
 
     # The first time through you'll need to authorize your key with Timetric
@@ -61,21 +67,27 @@ with Timetric to set up your tokens.
 
     # You can now re-authorize to use this token:
     >>> conf.update({'oauth_key':access_token.key,
-                     'oauth_secret':access_token.secret})
+    ...              'oauth_secret':access_token.secret})
     >>> client = timetric.TimetricClient(conf)
 
-API token setup:
+API token setup
+---------------
 
     >>> import timetric
 
     # Having got your config dict from somewhere:
-    >>> conf = {'authtype':'apitoken', 'apitoken_key': 'XXX', 'apitoken-secret': 'XXX'}
+    >>> conf = {'authtype':'apitoken', 
+    ...         'apitoken_key': 'XXX', 
+    ..          'apitoken-secret': 'XXX'}
 
     # you initialize the timetric client:
     >>> client = timetric.TimetricClient(conf)
 
 
-Usage::
+Usage
+-----
+
+::
     
     # There's no API method to get a list of a particular
     # user's series, so you need to somehow "know" the series ID.

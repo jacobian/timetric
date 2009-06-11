@@ -23,10 +23,14 @@ class TimetricClient(object):
         self.http.follow_redirects = False
         self.config = config
         self.user_agent = user_agent
-        if config['authtype'] == 'oauth':
+        self.authtype = config.get('authtype', 'oauth')
+        if self.authtype == 'oauth':
             self.setup_oauth()
-        elif config['authtype'] == 'apitoken':
+        elif self.authtype == 'apitoken':
             self.setup_apitokens()
+        else:
+            raise ValueError("Invalid Timetric auth type: '%s' "
+                             "(should be 'oauth' or 'apitoken')" % self.authtype)
 
     def setup_oauth(self):
         from oauth import oauth
